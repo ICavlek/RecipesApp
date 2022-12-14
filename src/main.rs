@@ -1,3 +1,6 @@
+mod constants;
+use constants::*;
+
 fn main() {
-    println!("Hello, world!");
+    println!("{}", STORAGE_FILE_PATH);
 }
