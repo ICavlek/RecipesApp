@@ -1,27 +1,25 @@
 use crate::{
+    client::Client,
     messages::{EventType, ListResponse},
     recipe::RecipeBehaviour,
 };
 use libp2p::{
     core::upgrade,
-    floodsub::{Floodsub, Topic},
+    floodsub::Floodsub,
     futures::StreamExt,
-    identity,
     mdns::Mdns,
     mplex,
     noise::{Keypair, NoiseConfig, X25519Spec},
     swarm::{Swarm, SwarmBuilder},
     tcp::TokioTcpConfig,
-    PeerId, Transport,
+    Transport,
 };
 use log::{error, info};
 use std::collections::HashSet;
 use tokio::{io::AsyncBufReadExt, sync::mpsc};
 
 pub struct Server {
-    pub keys: identity::Keypair,
-    pub peer_id: PeerId,
-    pub topic: Topic,
+    pub client: Client,
 }
 
 impl Server {
@@ -30,18 +28,18 @@ impl Server {
         let (response_sender, mut response_rcv) = mpsc::unbounded_channel::<ListResponse>();
 
         let mut behaviour = RecipeBehaviour {
-            floodsub: Floodsub::new(self.peer_id),
+            floodsub: Floodsub::new(self.client.peer_id),
             mdns: Mdns::new(Default::default())
                 .await
                 .expect("can create mdns"),
             response_sender: response_sender,
-            peer_id: self.peer_id,
+            peer_id: self.client.peer_id,
         };
 
-        behaviour.floodsub.subscribe(self.topic.clone());
+        behaviour.floodsub.subscribe(self.client.topic.clone());
 
         let auth_keys = Keypair::<X25519Spec>::new()
-            .into_authentic(&self.keys)
+            .into_authentic(&self.client.keys)
             .expect("can create auth keys");
 
         let transp = TokioTcpConfig::new()
@@ -50,7 +48,7 @@ impl Server {
             .multiplex(mplex::MplexConfig::new())
             .boxed();
 
-        let mut swarm = SwarmBuilder::new(transp, behaviour, self.peer_id)
+        let mut swarm = SwarmBuilder::new(transp, behaviour, self.client.peer_id)
             .executor(Box::new(|fut| {
                 tokio::spawn(fut);
             }))
@@ -82,7 +80,7 @@ impl Server {
                         swarm
                             .behaviour_mut()
                             .floodsub
-                            .publish(self.topic.clone(), json.as_bytes());
+                            .publish(self.client.topic.clone(), json.as_bytes());
                     }
                     EventType::Input(line) => match line.as_str() {
                         "ls p" => self.handle_list_peers(&mut swarm).await,
