@@ -83,7 +83,7 @@ impl Server {
                             .publish(self.client.topic.clone(), json.as_bytes());
                     }
                     EventType::Input(line) => match line.as_str() {
-                        "ls p" => self.handle_list_peers(&mut swarm).await,
+                        "ls p" => Server::handle_list_peers(&mut swarm).await,
                         _ => error!("unknown command"),
                     },
                 }
@@ -91,7 +91,7 @@ impl Server {
         }
     }
 
-    async fn handle_list_peers(&self, swarm: &mut Swarm<RecipeBehaviour>) {
+    async fn handle_list_peers(swarm: &mut Swarm<RecipeBehaviour>) {
         info!("Discovered Peers:");
         let nodes = swarm.behaviour().mdns.discovered_nodes();
         let mut unique_peers = HashSet::new();
