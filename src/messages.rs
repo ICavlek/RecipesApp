@@ -19,3 +19,8 @@ pub struct ListResponse {
     pub data: Recipes,
     pub receiver: String,
 }
+
+pub enum EventType {
+    Response(ListResponse),
+    Input(String),
+}
