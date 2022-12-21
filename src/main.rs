@@ -15,17 +15,17 @@ async fn main() {
 
     let thread1 = thread::spawn(|| {
         let john = Client::new();
-        let server = Server { client: john };
+        let server = Server::new(john);
         server.start();
     });
     let thread2 = thread::spawn(|| {
         let mark = Client::new();
-        let server = Server { client: mark };
+        let server = Server::new(mark);
         server.start();
     });
     let thread3 = thread::spawn(|| {
         let bruce = Client::new();
-        let server = Server { client: bruce };
+        let server = Server::new(bruce);
         server.start();
     });
     thread1.join().unwrap();

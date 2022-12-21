@@ -23,6 +23,9 @@ pub struct Server {
 }
 
 impl Server {
+    pub fn new(client: Client) -> Self {
+        Self { client: client }
+    }
     #[tokio::main]
     pub async fn start(&self) {
         let (response_sender, mut response_rcv) = mpsc::unbounded_channel::<ListResponse>();
@@ -84,6 +87,7 @@ impl Server {
                     }
                     EventType::Input(line) => match line.as_str() {
                         "ls p" => Server::handle_list_peers(&mut swarm).await,
+                        "exit" => break,
                         _ => error!("unknown command"),
                     },
                 }
