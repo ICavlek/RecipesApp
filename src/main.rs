@@ -73,10 +73,7 @@ async fn main() {
             tokio::select! {
                 line = stdin.next_line() => Some(EventType::Input(line.expect("can get line").expect("can read line from stdin"))),
                 response = response_rcv.recv() => Some(EventType::Response(response.expect("response exists"))),
-                event = swarm.select_next_some() => {
-                    info!("Unhandled Swarm Event: {:?}", event);
-                    None
-                },
+                _ = swarm.select_next_some() => None,
             }
         };
 
