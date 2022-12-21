@@ -2,16 +2,13 @@ use libp2p::{
     floodsub::{Floodsub, FloodsubEvent},
     mdns::{Mdns, MdnsEvent},
     swarm::NetworkBehaviourEventProcess,
-    NetworkBehaviour,
+    NetworkBehaviour, PeerId,
 };
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use tokio::{fs, sync::mpsc};
 
-use crate::{
-    constants::{PEER_ID, STORAGE_FILE_PATH},
-    messages::{ListMode, ListRequest, ListResponse},
-};
+use crate::messages::{ListMode, ListRequest, ListResponse};
 
 pub type Recipes = Vec<Recipe>;
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
@@ -31,6 +28,8 @@ pub struct RecipeBehaviour {
     pub mdns: Mdns,
     #[behaviour(ignore)]
     pub response_sender: mpsc::UnboundedSender<ListResponse>,
+    #[behaviour(ignore)]
+    pub peer_id: PeerId,
 }
 
 impl NetworkBehaviourEventProcess<FloodsubEvent> for RecipeBehaviour {
@@ -38,7 +37,7 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for RecipeBehaviour {
         match event {
             FloodsubEvent::Message(msg) => {
                 if let Ok(resp) = serde_json::from_slice::<ListResponse>(&msg.data) {
-                    if resp.receiver == PEER_ID.to_string() {
+                    if resp.receiver == self.peer_id.to_string() {
                         info!("Response from {}:", msg.source);
                         resp.data.iter().for_each(|r| info!("{:?}", r));
                     }
@@ -52,7 +51,7 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for RecipeBehaviour {
                             );
                         }
                         ListMode::One(ref peer_id) => {
-                            if peer_id == &PEER_ID.to_string() {
+                            if peer_id == &self.peer_id.to_string() {
                                 info!("Received req: {:?} from {:?}", req, msg.source);
                                 respond_with_public_recipes(
                                     self.response_sender.clone(),
@@ -87,6 +86,7 @@ fn respond_with_public_recipes(sender: mpsc::UnboundedSender<ListResponse>, rece
 }
 
 async fn read_local_recipes() -> Result<Recipes> {
+    const STORAGE_FILE_PATH: &str = "./recipes.json";
     let content = fs::read(STORAGE_FILE_PATH).await?;
     let result = serde_json::from_slice(&content)?;
     Ok(result)
@@ -136,7 +136,8 @@ mod tests {
             mdns: Mdns::new(Default::default())
                 .await
                 .expect("can create mdns"),
-            response_sender,
+            response_sender: response_sender,
+            peer_id: peer_id,
         };
         println!("{}", peer_id);
         behaviour.floodsub.subscribe(topic);
