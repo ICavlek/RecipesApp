@@ -16,26 +16,37 @@ use libp2p::{
 };
 use log::{error, info};
 use std::collections::HashSet;
-use tokio::{io::AsyncBufReadExt, sync::mpsc};
+use tokio::{
+    io::AsyncBufReadExt,
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+};
 
 pub struct Server {
     pub client: Client,
+    response_sender: UnboundedSender<ListResponse>,
+    response_receiver: UnboundedReceiver<ListResponse>,
 }
 
 impl Server {
     pub fn new(client: Client) -> Self {
-        Self { client: client }
+        let (response_sender, response_receiver): (
+            UnboundedSender<ListResponse>,
+            UnboundedReceiver<ListResponse>,
+        ) = mpsc::unbounded_channel::<ListResponse>();
+        Self {
+            client: client,
+            response_sender: response_sender,
+            response_receiver: response_receiver,
+        }
     }
     #[tokio::main]
-    pub async fn start(&self) {
-        let (response_sender, mut response_rcv) = mpsc::unbounded_channel::<ListResponse>();
-
+    pub async fn start(&mut self) {
         let mut behaviour = RecipeBehaviour {
             floodsub: Floodsub::new(self.client.peer_id),
             mdns: Mdns::new(Default::default())
                 .await
                 .expect("can create mdns"),
-            response_sender: response_sender,
+            response_sender: self.response_sender.clone(),
             peer_id: self.client.peer_id,
         };
 
@@ -57,8 +68,6 @@ impl Server {
             }))
             .build();
 
-        let mut stdin = tokio::io::BufReader::new(tokio::io::stdin()).lines();
-
         Swarm::listen_on(
             &mut swarm,
             "/ip4/0.0.0.0/tcp/0"
@@ -67,11 +76,13 @@ impl Server {
         )
         .expect("swarm can be started");
 
+        let mut stdin = tokio::io::BufReader::new(tokio::io::stdin()).lines();
+
         loop {
             let evt = {
                 tokio::select! {
                     line = stdin.next_line() => Some(EventType::Input(line.expect("can get line").expect("can read line from stdin"))),
-                    response = response_rcv.recv() => Some(EventType::Response(response.expect("response exists"))),
+                    response = self.response_receiver.recv() => Some(EventType::Response(response.expect("response exists"))),
                     _ = swarm.select_next_some() => None,
                 }
             };
