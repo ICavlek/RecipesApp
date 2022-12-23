@@ -71,6 +71,11 @@ impl Server {
 
     #[tokio::main]
     pub async fn start(&mut self) {
+        self.start_listen();
+        self.handle_events().await;
+    }
+
+    fn start_listen(&mut self) {
         Swarm::listen_on(
             &mut self.swarm,
             "/ip4/0.0.0.0/tcp/0"
@@ -78,8 +83,6 @@ impl Server {
                 .expect("can get a local socket"),
         )
         .expect("swarm can be started");
-
-        self.handle_events().await;
     }
 
     async fn handle_events(&mut self) {
