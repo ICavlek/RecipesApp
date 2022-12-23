@@ -71,8 +71,6 @@ impl Server {
 
     #[tokio::main]
     pub async fn start(&mut self) {
-        let mut stdin = tokio::io::BufReader::new(tokio::io::stdin()).lines();
-
         Swarm::listen_on(
             &mut self.swarm,
             "/ip4/0.0.0.0/tcp/0"
@@ -81,6 +79,11 @@ impl Server {
         )
         .expect("swarm can be started");
 
+        self.handle_events().await;
+    }
+
+    async fn handle_events(&mut self) {
+        let mut stdin = tokio::io::BufReader::new(tokio::io::stdin()).lines();
         loop {
             let evt = {
                 tokio::select! {
