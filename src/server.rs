@@ -4,7 +4,7 @@ use crate::{
     recipe::RecipeBehaviour,
 };
 use libp2p::{
-    core::upgrade,
+    core::{muxing::StreamMuxerBox, transport::Boxed, upgrade},
     floodsub::Floodsub,
     futures::StreamExt,
     mdns::Mdns,
@@ -12,7 +12,7 @@ use libp2p::{
     noise::{Keypair, NoiseConfig, X25519Spec},
     swarm::{Swarm, SwarmBuilder},
     tcp::TokioTcpConfig,
-    Transport,
+    PeerId, Transport,
 };
 use log::{error, info};
 use std::collections::HashSet;
@@ -23,37 +23,31 @@ use tokio::{
 
 pub struct Server {
     pub client: Client,
-    response_sender: UnboundedSender<ListResponse>,
     response_receiver: UnboundedReceiver<ListResponse>,
+    swarm: Swarm<RecipeBehaviour>,
 }
 
 impl Server {
-    pub fn new(client: Client) -> Self {
+    #[tokio::main]
+    pub async fn new(client: Client) -> Self {
         let (response_sender, response_receiver): (
             UnboundedSender<ListResponse>,
             UnboundedReceiver<ListResponse>,
         ) = mpsc::unbounded_channel::<ListResponse>();
-        Self {
-            client: client,
-            response_sender: response_sender,
-            response_receiver: response_receiver,
-        }
-    }
-    #[tokio::main]
-    pub async fn start(&mut self) {
+
         let mut behaviour = RecipeBehaviour {
-            floodsub: Floodsub::new(self.client.peer_id),
+            floodsub: Floodsub::new(client.peer_id),
             mdns: Mdns::new(Default::default())
                 .await
                 .expect("can create mdns"),
-            response_sender: self.response_sender.clone(),
-            peer_id: self.client.peer_id,
+            response_sender: response_sender.clone(),
+            peer_id: client.peer_id,
         };
 
-        behaviour.floodsub.subscribe(self.client.topic.clone());
+        behaviour.floodsub.subscribe(client.topic.clone());
 
         let auth_keys = Keypair::<X25519Spec>::new()
-            .into_authentic(&self.client.keys)
+            .into_authentic(&client.keys)
             .expect("can create auth keys");
 
         let transp = TokioTcpConfig::new()
@@ -62,28 +56,37 @@ impl Server {
             .multiplex(mplex::MplexConfig::new())
             .boxed();
 
-        let mut swarm = SwarmBuilder::new(transp, behaviour, self.client.peer_id)
+        let swarm: Swarm<RecipeBehaviour> = SwarmBuilder::new(transp, behaviour, client.peer_id)
             .executor(Box::new(|fut| {
                 tokio::spawn(fut);
             }))
             .build();
 
+        Self {
+            client: client,
+            response_receiver: response_receiver,
+            swarm: swarm,
+        }
+    }
+
+    #[tokio::main]
+    pub async fn start(&mut self) {
+        let mut stdin = tokio::io::BufReader::new(tokio::io::stdin()).lines();
+
         Swarm::listen_on(
-            &mut swarm,
+            &mut self.swarm,
             "/ip4/0.0.0.0/tcp/0"
                 .parse()
                 .expect("can get a local socket"),
         )
         .expect("swarm can be started");
 
-        let mut stdin = tokio::io::BufReader::new(tokio::io::stdin()).lines();
-
         loop {
             let evt = {
                 tokio::select! {
                     line = stdin.next_line() => Some(EventType::Input(line.expect("can get line").expect("can read line from stdin"))),
                     response = self.response_receiver.recv() => Some(EventType::Response(response.expect("response exists"))),
-                    _ = swarm.select_next_some() => None,
+                    _ = self.swarm.select_next_some() => None,
                 }
             };
 
@@ -91,13 +94,13 @@ impl Server {
                 match event {
                     EventType::Response(resp) => {
                         let json = serde_json::to_string(&resp).expect("can jsonify response");
-                        swarm
+                        self.swarm
                             .behaviour_mut()
                             .floodsub
                             .publish(self.client.topic.clone(), json.as_bytes());
                     }
                     EventType::Input(line) => match line.as_str() {
-                        "ls p" => Server::handle_list_peers(&mut swarm).await,
+                        "ls p" => Server::handle_list_peers(&mut self.swarm).await,
                         "exit" => break,
                         _ => error!("unknown command"),
                     },
