@@ -4,7 +4,7 @@ use crate::{
     recipe::RecipeBehaviour,
 };
 use libp2p::{
-    core::{muxing::StreamMuxerBox, transport::Boxed, upgrade},
+    core::upgrade,
     floodsub::Floodsub,
     futures::StreamExt,
     mdns::Mdns,
@@ -12,7 +12,7 @@ use libp2p::{
     noise::{Keypair, NoiseConfig, X25519Spec},
     swarm::{Swarm, SwarmBuilder},
     tcp::TokioTcpConfig,
-    PeerId, Transport,
+    Transport,
 };
 use log::{error, info};
 use std::collections::HashSet;
@@ -52,7 +52,7 @@ impl Server {
 
         let transp = TokioTcpConfig::new()
             .upgrade(upgrade::Version::V1)
-            .authenticate(NoiseConfig::xx(auth_keys).into_authenticated()) // XX Handshake pattern, IX exists as well and IK - only XX currently provides interop with other libp2p impls
+            .authenticate(NoiseConfig::xx(auth_keys).into_authenticated())
             .multiplex(mplex::MplexConfig::new())
             .boxed();
 
