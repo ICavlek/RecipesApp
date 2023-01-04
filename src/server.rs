@@ -125,3 +125,11 @@ impl Server {
         unique_peers.iter().for_each(|p| info!("{}", p));
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn test_server() {
+        assert_eq!(1, 1);
+    }
+}
