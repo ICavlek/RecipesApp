@@ -17,7 +17,7 @@ use libp2p::{
 use log::{error, info};
 use std::collections::HashSet;
 use tokio::{
-    io::{AsyncBufReadExt, BufReader, Lines, Stdin},
+    io::AsyncBufReadExt,
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
 };
 
@@ -72,8 +72,7 @@ impl Server {
     #[tokio::main]
     pub async fn start(&mut self) {
         self.start_listen();
-        let stdin = tokio::io::BufReader::new(tokio::io::stdin()).lines();
-        self.handle_events(stdin).await;
+        self.handle_events().await;
     }
 
     fn start_listen(&mut self) {
@@ -86,7 +85,8 @@ impl Server {
         .expect("swarm can be started");
     }
 
-    async fn handle_events(&mut self, mut stdin: Lines<BufReader<Stdin>>) {
+    async fn handle_events(&mut self) {
+        let mut stdin = tokio::io::BufReader::new(tokio::io::stdin()).lines();
         loop {
             let evt = {
                 tokio::select! {
