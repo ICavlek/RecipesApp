@@ -166,4 +166,14 @@ mod tests {
             }
         }
     }
+
+    #[tokio::test]
+    async fn test_multiple_clients() {
+        let john = Client::new();
+        let mut server_john = Server::new(john).await;
+        let jane = Client::new();
+        let mut server_jane = Server::new(jane).await;
+        server_john.start_listen().await;
+        server_jane.start_listen().await;
+    }
 }
