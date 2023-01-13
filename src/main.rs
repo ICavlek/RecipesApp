@@ -7,9 +7,11 @@ use client::*;
 use server::*;
 
 /// Main function
-fn main() {
+#[tokio::main]
+async fn main() {
     pretty_env_logger::init();
     let john = Client::new();
-    let mut server = Server::new(john);
-    server.start();
+    let mut server = Server::new(john).await;
+    server.start_listen().await;
+    server.handle_events().await;
 }

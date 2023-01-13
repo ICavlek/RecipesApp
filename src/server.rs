@@ -28,7 +28,6 @@ pub struct Server {
 }
 
 impl Server {
-    #[tokio::main]
     pub async fn new(client: Client) -> Self {
         let (response_sender, response_receiver): (
             UnboundedSender<ListResponse>,
@@ -69,13 +68,7 @@ impl Server {
         }
     }
 
-    #[tokio::main]
-    pub async fn start(&mut self) {
-        self.start_listen();
-        self.handle_events().await;
-    }
-
-    fn start_listen(&mut self) {
+    pub async fn start_listen(&mut self) {
         Swarm::listen_on(
             &mut self.swarm,
             "/ip4/0.0.0.0/tcp/0"
@@ -85,7 +78,7 @@ impl Server {
         .expect("swarm can be started");
     }
 
-    async fn handle_events(&mut self) {
+    pub async fn handle_events(&mut self) {
         let mut stdin = tokio::io::BufReader::new(tokio::io::stdin()).lines();
         loop {
             let evt = {
@@ -106,7 +99,7 @@ impl Server {
                             .publish(self.client.topic.clone(), json.as_bytes());
                     }
                     EventType::Input(line) => match line.as_str() {
-                        "ls p" => Server::handle_list_peers(&mut self.swarm).await,
+                        "ls p" => self.handle_list_peers().await,
                         "exit" => break,
                         _ => error!("unknown command"),
                     },
@@ -115,9 +108,9 @@ impl Server {
         }
     }
 
-    async fn handle_list_peers(swarm: &mut Swarm<RecipeBehaviour>) {
+    async fn handle_list_peers(&mut self) {
         info!("Discovered Peers:");
-        let nodes = swarm.behaviour().mdns.discovered_nodes();
+        let nodes = self.swarm.behaviour().mdns.discovered_nodes();
         let mut unique_peers = HashSet::new();
         for peer in nodes {
             unique_peers.insert(peer);
@@ -128,8 +121,49 @@ impl Server {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     #[tokio::test]
-    async fn test_server() {
-        assert_eq!(1, 1);
+    async fn test_start_listen() {
+        let john = Client::new();
+        let mut server = Server::new(john).await;
+        server.start_listen().await;
+    }
+
+    #[tokio::test]
+    async fn test_handle_list_peers() {
+        let john = Client::new();
+        let mut server = Server::new(john).await;
+        let input = "ls p\nexit\n";
+        let input = std::io::Cursor::new(input.as_bytes());
+        let mut input = tokio::io::BufReader::new(input).lines();
+
+        server.start_listen().await;
+        loop {
+            let evt = {
+                tokio::select! {
+                    line = input.next_line() => Some(EventType::Input(line.expect("can get line").expect("can read line from stdin"))),
+                    response = server.response_receiver.recv() => Some(EventType::Response(response.expect("response exists"))),
+                    _ = server.swarm.select_next_some() => None,
+                }
+            };
+
+            if let Some(event) = evt {
+                match event {
+                    EventType::Response(resp) => {
+                        let json = serde_json::to_string(&resp).expect("can jsonify response");
+                        server
+                            .swarm
+                            .behaviour_mut()
+                            .floodsub
+                            .publish(server.client.topic.clone(), json.as_bytes());
+                    }
+                    EventType::Input(line) => match line.as_str() {
+                        "ls p" => server.handle_list_peers().await,
+                        "exit" => break,
+                        _ => error!("unknown command"),
+                    },
+                }
+            }
+        }
     }
 }
