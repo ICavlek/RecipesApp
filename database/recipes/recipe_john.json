@@ -19,12 +19,5 @@
         "ingredients": "Carrots, Cake",
         "instructions": "Make Carrot Cake",
         "public": true
-    },
-    {
-        "id": 3,
-        "name": " Name",
-        "ingredients": "Ingredients",
-        "instructions": "Instructions",
-        "public": true
     }
 ]

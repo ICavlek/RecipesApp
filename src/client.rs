@@ -1,9 +1,4 @@
-use libp2p::{
-    floodsub::Topic,
-    identity,
-    multihash::{Code, MultihashDigest},
-    PeerId,
-};
+use libp2p::{floodsub::Topic, identity, PeerId};
 use log::info;
 use tokio::fs;
 
@@ -30,7 +25,7 @@ impl Client {
             keys: keypair,
             peer_id: peer_id,
             topic: Topic::new("recipes"),
-            storage_file_path: "./recipes.json".to_string(),
+            storage_file_path: "./database/recipes/recipe_john.json".to_string(),
         }
     }
 
