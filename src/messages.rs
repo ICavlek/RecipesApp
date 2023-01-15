@@ -16,3 +16,8 @@ pub enum EventType {
     Response(ListResponse),
     Input(String),
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ListRequest {
+    pub mode: ListMode,
+}

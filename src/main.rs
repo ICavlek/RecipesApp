@@ -10,7 +10,7 @@ use server::*;
 #[tokio::main]
 async fn main() {
     pretty_env_logger::init();
-    let john = Client::new();
+    let john = Client::new("john");
     let mut server = Server::new(john).await;
     server.start_listen().await;
     server.handle_events().await;

@@ -1,6 +1,6 @@
 use crate::{
     client::Client,
-    messages::{EventType, ListResponse},
+    messages::{EventType, ListMode, ListRequest, ListResponse},
     recipe::RecipeBehaviour,
 };
 use libp2p::{
@@ -100,6 +100,7 @@ impl Server {
                     }
                     EventType::Input(line) => match line.as_str() {
                         "ls p" => self.handle_list_peers().await,
+                        cmd if cmd.starts_with("ls r") => self.handle_list_recipes(cmd).await,
                         "exit" => break,
                         _ => error!("unknown command"),
                     },
@@ -117,6 +118,41 @@ impl Server {
         }
         unique_peers.iter().for_each(|p| info!("{}", p));
     }
+
+    async fn handle_list_recipes(&mut self, cmd: &str) {
+        let rest = cmd.strip_prefix("ls r ");
+        match rest {
+            Some("all") => {
+                let req = ListRequest {
+                    mode: ListMode::ALL,
+                };
+                let json = serde_json::to_string(&req).expect("can jsonify request");
+                self.swarm
+                    .behaviour_mut()
+                    .floodsub
+                    .publish(self.client.topic.clone(), json.as_bytes());
+            }
+            Some(recipes_peer_id) => {
+                let req = ListRequest {
+                    mode: ListMode::One(recipes_peer_id.to_owned()),
+                };
+                let json = serde_json::to_string(&req).expect("can jsonify request");
+                self.swarm
+                    .behaviour_mut()
+                    .floodsub
+                    .publish(self.client.topic.clone(), json.as_bytes());
+            }
+            None => {
+                match self.client.read_local_recipes().await {
+                    Ok(v) => {
+                        info!("Local Recipes ({})", v.len());
+                        v.iter().for_each(|r| info!("{:?}", r));
+                    }
+                    Err(e) => error!("error fetching local recipes: {}", e),
+                };
+            }
+        };
+    }
 }
 
 #[cfg(test)]
@@ -124,14 +160,14 @@ mod tests {
     use super::*;
     #[tokio::test]
     async fn test_start_listen() {
-        let john = Client::new();
+        let john = Client::new("john");
         let mut server = Server::new(john).await;
         server.start_listen().await;
     }
 
     #[tokio::test]
     async fn test_handle_list_peers() {
-        let john = Client::new();
+        let john = Client::new("john");
         let mut server = Server::new(john).await;
         let input = "ls p\nexit\n";
         let input = std::io::Cursor::new(input.as_bytes());
@@ -169,9 +205,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_multiple_clients() {
-        let john = Client::new();
+        let john = Client::new("john");
         let mut server_john = Server::new(john).await;
-        let jane = Client::new();
+        let jane = Client::new("jane");
         let mut server_jane = Server::new(jane).await;
         server_john.start_listen().await;
         server_jane.start_listen().await;

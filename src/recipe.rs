@@ -4,9 +4,19 @@ use libp2p::{
     swarm::NetworkBehaviourEventProcess,
     NetworkBehaviour, PeerId,
 };
+use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
 use crate::messages::ListResponse;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Recipe {
+    id: usize,
+    name: String,
+    ingredients: String,
+    instructions: String,
+    public: bool,
+}
 
 #[derive(NetworkBehaviour)]
 pub struct RecipeBehaviour {
