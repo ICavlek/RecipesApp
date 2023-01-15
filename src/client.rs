@@ -23,13 +23,8 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync 
 impl Client {
     pub fn new(name: &str) -> Self {
         let keypair = identity::Keypair::generate_ed25519();
-        let key = keypair.public().into_protobuf_encoding();
-        let peer_id_my =
-            PeerId::from_multihash(Code::Identity.digest(&key)).expect("Failed to create PeerId");
         let peer_id = PeerId::from(keypair.public());
-        info!("Key for Peer Id: {:?}", key);
         info!("New peer with Id: {}", peer_id);
-        info!("New peer with Id My: {}", peer_id_my);
         Self {
             name: name.to_string(),
             keys: keypair,
