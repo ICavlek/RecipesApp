@@ -25,7 +25,7 @@ impl Client {
             keys: keypair,
             peer_id: peer_id,
             topic: Topic::new("recipes"),
-            storage_file_path: "./database/recipes/recipe_john.json".to_string(),
+            storage_file_path: format!("./database/recipes/recipe_{}.json", name).to_string(),
         }
     }
 
@@ -33,5 +33,22 @@ impl Client {
         let content = fs::read(self.storage_file_path.as_str()).await?;
         let result = serde_json::from_slice(&content)?;
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn test_client() {
+        let john = Client::new("john");
+        assert_eq!(john.name, "john");
+    }
+
+    #[tokio::test]
+    async fn test_read_local_recipes() {
+        let john = Client::new("john");
+        let recipes = john.read_local_recipes().await;
+        assert!(recipes.is_ok());
     }
 }

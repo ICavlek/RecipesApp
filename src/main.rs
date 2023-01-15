@@ -10,8 +10,16 @@ use server::*;
 #[tokio::main]
 async fn main() {
     pretty_env_logger::init();
-    let john = Client::new("john");
-    let mut server = Server::new(john).await;
+    let name = match std::env::args().nth(1) {
+        Some(name) => name,
+        None => {
+            println!("Please provide a name as the first argument");
+            return;
+        }
+    };
+
+    let client = Client::new(name.as_str());
+    let mut server = Server::new(client).await;
     server.start_listen().await;
     server.handle_events().await;
 }
